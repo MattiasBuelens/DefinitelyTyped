@@ -6,24 +6,26 @@
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 // TypeScript Version: 2.3
 
-export interface ReadableStreamSource<R = ArrayBufferView> {
-    start?(controller: ReadableStreamDefaultController<R>): void | Promise<any>;
-    pull?(controller: ReadableStreamDefaultController<R>): void | Promise<any>;
-    cancel?(reason: any): void | Promise<any>;
+export interface UnderlyingSource<R = any> {
+    start?: ReadableStreamDefaultControllerCallback<R>;
+    pull?: ReadableStreamDefaultControllerCallback<R>;
+    cancel?: ReadableStreamErrorCallback;
+
+    type?: undefined;
 }
 
-export interface ReadableByteStreamSource {
-    start?(controller: ReadableByteStreamController): void | Promise<any>;
-    pull?(controller: ReadableByteStreamController): void | Promise<any>;
-    cancel?(reason: any): void | Promise<any>;
+export interface UnderlyingByteSource {
+    start?: ReadableByteStreamControllerCallback;
+    pull?: ReadableByteStreamControllerCallback;
+    cancel?: ReadableStreamErrorCallback;
 
     type: "bytes";
     autoAllocateChunkSize?: number;
 }
 
-export interface QueuingStrategy<T = ArrayBufferView> {
-    size?(chunk: T): number;
+export interface QueuingStrategy<T = any> {
     highWaterMark?: number;
+    size?: QueuingStrategySizeCallback<T>;
 }
 
 export interface PipeOptions {
@@ -32,136 +34,187 @@ export interface PipeOptions {
     preventCancel?: boolean;
 }
 
-export interface WritableReadablePair<T extends WritableStream<any>, U extends ReadableStream<any>> {
-    writable: T;
-    readable: U;
-}
-
-export interface ReadResult<T> {
+export interface ReadableStreamReadResult<T> {
     done: boolean;
     value: T;
 }
 
-declare class ReadableStream<R = ArrayBufferView> {
-    constructor(underlyingSource?: ReadableStreamSource<R>, strategy?: QueuingStrategy<R>);
-    constructor(underlyingSource?: ReadableByteStreamSource, strategy?: QueuingStrategy<R>);
-
+export interface ReadableStream<R = any> {
     readonly locked: boolean;
 
-    cancel(reason: any): Promise<void>;
+    cancel(reason?: any): Promise<void>;
+    getReader(options: { mode: "byob" }): ReadableStreamBYOBReader;
     getReader(): ReadableStreamDefaultReader<R>;
-    getReader({ mode }: { mode: "byob" }): ReadableStreamBYOBReader<R>;
-    pipeThrough<T extends ReadableStream<any>>({ writable, readable }: WritableReadablePair<WritableStream<R>, T>, options?: PipeOptions): T;
+    pipeThrough<T>({writable, readable}: { writable: WritableStream<R>, readable: ReadableStream<T> }, options?: PipeOptions): ReadableStream<T>;
     pipeTo(dest: WritableStream<R>, options?: PipeOptions): Promise<void>;
     tee(): [ReadableStream<R>, ReadableStream<R>];
 }
 
-declare class ReadableStreamDefaultReader<R = ArrayBufferView> {
-    constructor(stream: ReadableStream<R>);
+export declare var ReadableStream: {
+    prototype: ReadableStream;
+    new(underlyingSource: UnderlyingByteSource, strategy?: { highWaterMark?: number, size?: undefined }): ReadableStream<Uint8Array>;
+    new<R = any>(underlyingSource?: UnderlyingSource<R>, strategy?: QueuingStrategy<R>): ReadableStream<R>;
+};
 
+export interface ReadableStreamDefaultReader<R = any> {
     readonly closed: Promise<void>;
 
-    cancel(reason: any): Promise<void>;
-    read(): Promise<ReadResult<R>>;
+    cancel(reason?: any): Promise<void>;
+    read(): Promise<ReadableStreamReadResult<R>>;
     releaseLock(): void;
 }
 
-declare class ReadableStreamBYOBReader<R = ArrayBufferView> {
-    constructor(stream: ReadableStream<R>);
-
+export interface ReadableStreamBYOBReader {
     readonly closed: Promise<void>;
 
-    cancel(reason: any): Promise<void>;
-    read<T extends ArrayBufferView>(view: T): Promise<ReadResult<T>>;
+    cancel(reason?: any): Promise<void>;
+    read<T extends ArrayBufferView>(view: T): Promise<ReadableStreamReadResult<T>>;
     releaseLock(): void;
 }
 
-declare class ReadableStreamDefaultController<R = ArrayBufferView> {
+export interface ReadableStreamDefaultController<R = any> {
     readonly desiredSize: number | null;
 
     close(): void;
     enqueue(chunk: R): void;
-    error(e: any): void;
+    error(error?: any): void;
 }
 
-declare class ReadableByteStreamController {
+export interface ReadableByteStreamController {
     readonly byobRequest: ReadableStreamBYOBRequest | undefined;
     readonly desiredSize: number | null;
 
     close(): void;
     enqueue(chunk: ArrayBufferView): void;
-    error(e: any): void;
+    error(error?: any): void;
 }
 
-declare class ReadableStreamBYOBRequest {
-    readonly view: Uint8Array;
+export interface ReadableStreamBYOBRequest {
+    readonly view: ArrayBufferView;
 
     respond(bytesWritten: number): void;
     respondWithNewView(view: ArrayBufferView): void;
 }
 
-interface WritableStreamSink<W = ArrayBufferView> {
-    start?(controller: WritableStreamDefaultController<W>): void | Promise<any>;
-    write?(chunk: W, controller?: WritableStreamDefaultController<W>): void | Promise<any>;
-    close?(controller: WritableStreamDefaultController<W>): void | Promise<any>;
-    abort?(reason: any): void | Promise<any>;
+export interface UnderlyingSink<W = any> {
+    start?: WritableStreamDefaultControllerStartCallback;
+    write?: WritableStreamDefaultControllerWriteCallback<W>;
+    close?: WritableStreamDefaultControllerCloseCallback;
+    abort?: WritableStreamErrorCallback;
+
+    type?: undefined;
 }
 
-declare class WritableStream<W = ArrayBufferView> {
-    constructor(underlyingSink?: WritableStreamSink<W>, strategy?: QueuingStrategy<W>);
-
+export interface WritableStream<W = any> {
     readonly locked: boolean;
 
-    abort(reason: any): Promise<void>;
+    abort(reason?: any): Promise<void>;
     getWriter(): WritableStreamDefaultWriter<W>;
 }
 
-declare class WritableStreamDefaultWriter<W = ArrayBufferView> {
-    constructor(stream: WritableStream<W>);
+export declare var WritableStream: {
+    prototype: WritableStream;
+    new<W = any>(underlyingSink?: UnderlyingSink<W>, strategy?: QueuingStrategy<W>): WritableStream<W>;
+};
 
+export interface WritableStreamDefaultWriter<W = any> {
     readonly closed: Promise<void>;
     readonly desiredSize: number | null;
     readonly ready: Promise<void>;
 
-    abort(reason: any): Promise<void>;
+    abort(reason?: any): Promise<void>;
     close(): Promise<void>;
     releaseLock(): void;
     write(chunk: W): Promise<void>;
 }
 
-declare class WritableStreamDefaultController<W = ArrayBufferView> {
-    error(e: any): void;
+export interface WritableStreamDefaultController {
+    error(error?: any): void;
 }
 
-declare class ByteLengthQueuingStrategy<T = ArrayBufferView> {
-    constructor({ highWaterMark }: { highWaterMark: number });
-
-    size(chunk: T): number | undefined;
+export interface ByteLengthQueuingStrategy extends QueuingStrategy<ArrayBufferView> {
+    highWaterMark: number;
+    size(chunk: ArrayBufferView): number;
 }
 
-declare class CountQueuingStrategy {
-    constructor({ highWaterMark }: { highWaterMark: number });
+export declare var ByteLengthQueuingStrategy: {
+    prototype: ByteLengthQueuingStrategy;
+    new(options: { highWaterMark: number }): ByteLengthQueuingStrategy;
+};
 
-    size(): 1;
+export interface CountQueuingStrategy extends QueuingStrategy {
+    highWaterMark: number;
+    size(chunk: any): 1;
 }
 
-export interface TransformStreamTransformer<R, W> {
-    start?(controller: TransformStreamDefaultController<R>): void | Promise<any>;
-    transform?(chunk: W, controller: TransformStreamDefaultController<R>): void | Promise<any>;
-    flush?(controller: TransformStreamDefaultController<R>): void | Promise<any>;
+export declare var CountQueuingStrategy: {
+    prototype: CountQueuingStrategy;
+    new(options: { highWaterMark: number }): CountQueuingStrategy;
+};
+
+export interface Transformer<I = any, O = any> {
+    start?: TransformStreamDefaultControllerCallback<O>;
+    transform?: TransformStreamDefaultControllerTransformCallback<I, O>;
+    flush?: TransformStreamDefaultControllerCallback<O>;
+
+    readableType?: undefined;
+    writableType?: undefined;
 }
 
-declare class TransformStream<R, W> implements WritableReadablePair<WritableStream<W>, ReadableStream<R>> {
-    constructor(transformer?: TransformStreamTransformer<R, W>, writableStrategy?: QueuingStrategy<W>, readableStrategy?: QueuingStrategy<R>);
-
-    readonly readable: ReadableStream<R>;
-    readonly writable: WritableStream<W>;
+export interface TransformStream<I = any, O = any> {
+    readonly readable: ReadableStream<O>;
+    readonly writable: WritableStream<I>;
 }
 
-declare class TransformStreamDefaultController<R> {
-    enqueue(chunk: R): void;
-    error(reason: any): void;
-    terminate(): void;
+export declare var TransformStream: {
+    prototype: TransformStream;
+    new<I = any, O = any>(transformer?: Transformer<I, O>, writableStrategy?: QueuingStrategy<I>, readableStrategy?: QueuingStrategy<O>): TransformStream<I, O>;
+};
 
+export interface TransformStreamDefaultController<O = any> {
     readonly desiredSize: number | null;
+
+    enqueue(chunk: O): void;
+    error(reason?: any): void;
+    terminate(): void;
+}
+
+export interface QueuingStrategySizeCallback<T = any> {
+    (chunk: T): number;
+}
+
+export interface ReadableByteStreamControllerCallback {
+    (controller: ReadableByteStreamController): void | PromiseLike<void>;
+}
+
+export interface ReadableStreamDefaultControllerCallback<R> {
+    (controller: ReadableStreamDefaultController<R>): void | PromiseLike<void>;
+}
+
+export interface ReadableStreamErrorCallback {
+    (reason: any): void | PromiseLike<void>;
+}
+
+export interface TransformStreamDefaultControllerCallback<O> {
+    (controller: TransformStreamDefaultController<O>): void | PromiseLike<void>;
+}
+
+export interface TransformStreamDefaultControllerTransformCallback<I, O> {
+    (chunk: I, controller: TransformStreamDefaultController<O>): void | PromiseLike<void>;
+}
+
+export interface WritableStreamDefaultControllerCloseCallback {
+    (): void | PromiseLike<void>;
+}
+
+export interface WritableStreamDefaultControllerStartCallback {
+    (controller: WritableStreamDefaultController): void | PromiseLike<void>;
+}
+
+export interface WritableStreamDefaultControllerWriteCallback<W> {
+    (chunk: W, controller: WritableStreamDefaultController): void | PromiseLike<void>;
+}
+
+export interface WritableStreamErrorCallback {
+    (reason: any): void | PromiseLike<void>;
 }
